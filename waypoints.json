@@ -1,0 +1,10 @@
+{
+    "1": [
+        { "latitude": 49.876964, "longitude": 19.219858, "description": "Opis punktu 1" },
+        { "latitude": 49.878781, "longitude": 19.209998, "description": "Opis punktu 2" }
+    ],
+    "2": [
+        { "latitude": 50.123456, "longitude": 19.876543, "description": "Opis punktu A" },
+        { "latitude": 50.234567, "longitude": 19.765432, "description": "Opis punktu B" }
+    ]
+}
