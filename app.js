@@ -9,8 +9,6 @@ if ('serviceWorker' in navigator) {
 }
 
 let currentWaypoints = [];
-let userLocationWatcher = null;
-const proximityThreshold = 0.95; // Próg w stopniach (ok. 5.5 km)
 
 // Ładowanie tras z pliku JSON
 async function loadRoutes() {
@@ -65,6 +63,7 @@ async function loadWaypoints(routeId) {
     }
 }
 
+// Inicjalizacja mapy za pomocą Leaflet.js
 function initializeMap(waypoints) {
     const map = L.map('map').setView([waypoints[0].latitude, waypoints[0].longitude], 15);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -79,75 +78,42 @@ function initializeMap(waypoints) {
     });
 }
 
+// Nawigacja od lokalizacji użytkownika do punktów trasy
 function navigateRoute() {
-    if (!currentWaypoints || currentWaypoints.length === 0) {
-        alert('Brak punktów nawigacyjnych dla tej trasy.');
+    if (!currentWaypoints || currentWaypoints.length < 2) {
+        alert('Brak wystarczającej liczby punktów nawigacyjnych dla tej trasy.');
         return;
     }
 
-    startTrackingUser(currentWaypoints);
-
-    // Skierowanie użytkownika do Google Maps na podstawie pierwszego i ostatniego punktu
-    const origin = currentWaypoints[0];
-    const destination = currentWaypoints[currentWaypoints.length - 1];
-    const intermediateWaypoints = currentWaypoints.slice(1, -1);
-
-    const waypointParams = intermediateWaypoints
-        .map(wp => `${wp.latitude},${wp.longitude}`)
-        .join('|');
-
-    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&waypoints=${waypointParams}`;
-
-    console.log('Google Maps URL:', googleMapsUrl);
-    window.open(googleMapsUrl, '_blank');
-}
-
-function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Promień Ziemi w kilometrach
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Odległość w kilometrach
-}
-
-function startTrackingUser(waypoints) {
     if (!navigator.geolocation) {
         alert("Twoja przeglądarka nie obsługuje geolokalizacji.");
         return;
     }
 
-    userLocationWatcher = navigator.geolocation.watchPosition(
+    navigator.geolocation.getCurrentPosition(
         position => {
             const userLat = position.coords.latitude;
             const userLon = position.coords.longitude;
 
-            for (let i = 0; i < waypoints.length; i++) {
-                const waypoint = waypoints[i];
-                const distance = calculateDistance(userLat, userLon, waypoint.latitude, waypoint.longitude);
+            const origin = { latitude: userLat, longitude: userLon };
+            const firstWaypoint = currentWaypoints[0];
+            const secondWaypoint = currentWaypoints[1];
 
-                if (distance <= proximityThreshold) {
-                    alert(`Dotarłeś na miejsce: ${waypoint.description}`);
-                    stopTrackingUser();
-                    break;
-                }
-            }
+            const googleMapsUrl = `https://www.google.com/maps/dir/?api=1` +
+                `&origin=${origin.latitude},${origin.longitude}` +
+                `&destination=${secondWaypoint.latitude},${secondWaypoint.longitude}` +
+                `&waypoints=${firstWaypoint.latitude},${firstWaypoint.longitude}`;
+
+            console.log('Google Maps URL:', googleMapsUrl);
+            window.open(googleMapsUrl, '_blank');
         },
         error => {
-            console.error("Błąd podczas śledzenia lokalizacji:", error);
-            alert("Nie udało się uzyskać lokalizacji użytkownika.");
+            console.error("Błąd podczas uzyskiwania lokalizacji:", error);
+            alert("Nie udało się uzyskać aktualnej lokalizacji użytkownika.");
         },
         { enableHighAccuracy: true }
     );
 }
-function stopTrackingUser() {
-    if (userLocationWatcher !== null) {
-        navigator.geolocation.clearWatch(userLocationWatcher);
-        userLocationWatcher = null;
-    }
-}
 
+// Ładowanie tras na początku działania aplikacji
 loadRoutes();
