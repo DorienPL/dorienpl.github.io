@@ -1,4 +1,4 @@
-const CACHE_NAME = 'route-planner-cache-v2';
+const CACHE_NAME = 'route-planner-cache-v3'; // Zmień wersję cache
 const urlsToCache = [
     './',
     './index.html',
@@ -9,20 +9,11 @@ const urlsToCache = [
     './icon-512x512.png'
 ];
 
-// Funkcja do aktualizacji cache
-async function updateCache(request) {
-    const cache = await caches.open(CACHE_NAME);
-    const response = await fetch(request);
-    if (response && response.status === 200 && response.type === 'basic') {
-        await cache.put(request, response.clone());
-    }
-    return response;
-}
-
 // Instalacja Service Workera
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
+            console.log('Cache otwarty podczas instalacji');
             return cache.addAll(urlsToCache);
         })
     );
@@ -30,16 +21,21 @@ self.addEventListener('install', (event) => {
 
 // Aktywacja Service Workera
 self.addEventListener('activate', (event) => {
+    console.log('Service Worker aktywowany');
     const cacheWhitelist = [CACHE_NAME];
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
                     if (!cacheWhitelist.includes(cacheName)) {
+                        console.log(`Usuwanie starego cache: ${cacheName}`);
                         return caches.delete(cacheName);
                     }
                 })
             );
+        }).then(() => {
+            console.log('Nowa wersja Service Workera aktywna');
+            return self.clients.claim(); // Natychmiastowa aktywacja nowego SW
         })
     );
 });
@@ -47,20 +43,19 @@ self.addEventListener('activate', (event) => {
 // Obsługa żądań (fetch)
 self.addEventListener('fetch', (event) => {
     event.respondWith(
-        caches.match(event.request).then(async (cachedResponse) => {
-            if (cachedResponse) {
-                // Sprawdź, czy zasób w cache wymaga aktualizacji
-                fetch(event.request).then((response) => {
-                    if (response && response.status === 200 && response.type === 'basic') {
-                        caches.open(CACHE_NAME).then((cache) => {
-                            cache.put(event.request, response.clone());
-                        });
-                    }
-                }).catch(() => console.log('Offline - nie można zaktualizować pliku:', event.request.url));
-                return cachedResponse; // Zwróć z cache natychmiast
-            }
-            // Jeśli brak zasobu w cache, pobierz z sieci
-            return updateCache(event.request);
-        })
+        fetch(event.request)
+            .then((response) => {
+                if (!response || response.status !== 200 || response.type !== 'basic') {
+                    return response;
+                }
+
+                const clonedResponse = response.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                    cache.put(event.request, clonedResponse);
+                });
+
+                return response;
+            })
+            .catch(() => caches.match(event.request)) // Zwracaj z cache w razie offline
     );
 });
